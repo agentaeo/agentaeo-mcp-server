@@ -42,31 +42,14 @@ Config file on macOS: `~/Library/Application Support/Claude/claude_desktop_confi
 
 `-y` skips npx’s “Ok to proceed?” prompt (important for GUI-launched processes).
 
-### Local dev (before publish, or testing a `.tgz`)
+### Local dev (before publish)
 
-**Do not use relative paths** like `./agentaeo-mcp-server-0.1.0.tgz` — Claude Desktop’s working directory is **not** your repo folder, so the file won’t be found.
+**Prefer `node` + `dist/index.js`** — `npx` + a local `.tgz` often breaks in Claude Desktop (npm path bugs, “tarball corrupted”, or `Permission denied` when the shell mishandles the archive). Avoid `.tgz` in the MCP config unless you’ve verified it on your machine.
 
-Use **one** of these (replace with your real path):
+1. In the repo: `npm install` and `npm run build` (must produce `dist/index.js`).
+2. Use your **real** AgentAEO key in `AGENTAEO_API_KEY` (not the literal text `your_real_key_here`).
 
-**A — Absolute path to the tarball**
-
-```json
-{
-  "mcpServers": {
-    "agentaeo": {
-      "command": "npx",
-      "args": ["-y", "/Users/aashishn/agents/agentaeo-mcp-server/agentaeo-mcp-server-0.1.0.tgz"],
-      "env": {
-        "AGENTAEO_API_KEY": "your_api_key_here"
-      }
-    }
-  }
-}
-```
-
-**B — `node` + built `dist` (no npx, no tarball)**
-
-Run `npm run build` first so `dist/index.js` exists:
+**Recommended — `node` + absolute path to `dist/index.js`:**
 
 ```json
 {
@@ -75,14 +58,19 @@ Run `npm run build` first so `dist/index.js` exists:
       "command": "node",
       "args": ["/Users/aashishn/agents/agentaeo-mcp-server/dist/index.js"],
       "env": {
-        "AGENTAEO_API_KEY": "your_api_key_here"
+        "AGENTAEO_API_KEY": "paste_your_agentaeo_live_key_here"
       }
     }
   }
 }
 ```
 
-After editing the config, **fully quit Claude Desktop** (not just close the window) and reopen. If it still fails, check **Claude → Settings → Developer → MCP** for error messages.
+If `node` is not on Claude’s PATH (e.g. only nvm), use the full path to node, e.g. `"/Users/aashishn/.nvm/versions/node/v22.16.0/bin/node"` as `command` and the same `args` for `dist/index.js`.
+
+**Optional — tarball via npx** (only if `node` works from Terminal but you prefer npx): some setups need `file:` prefix — ask in Terminal first:  
+`npx -y file:/Users/aashishn/agents/agentaeo-mcp-server/agentaeo-mcp-server-0.1.0.tgz` — if that fails, stick to `node` + `dist`.
+
+After editing the config, **fully quit Claude Desktop** (Cmd+Q) and reopen. Check **Settings → Developer → Local MCP servers** for a green status.
 
 ## Tools
 
