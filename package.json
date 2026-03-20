@@ -1,0 +1,43 @@
+{
+  "name": "@agentaeo/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for AgentAEO — run AEO audits across ChatGPT, Perplexity, Claude, and Google AI",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "agentaeo-mcp-server": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "agentaeo",
+    "aeo",
+    "answer-engine-optimization",
+    "ai-search"
+  ],
+  "author": "AIMetica Solutions LLP <agents@agentaeo.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agentaeo/mcp-server.git"
+  },
+  "homepage": "https://agentaeo.com/agents",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
