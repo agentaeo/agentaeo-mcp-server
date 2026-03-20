@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "agentaeo-mcp-server": "./dist/index.js"
+    "agentaeo-mcp-server": "dist/index.js"
   },
   "files": [
     "dist",
@@ -29,7 +29,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/agentaeo/agentaeo-mcp-server.git"
+    "url": "git+https://github.com/agentaeo/agentaeo-mcp-server.git"
   },
   "homepage": "https://agentaeo.com/agents",
   "dependencies": {
