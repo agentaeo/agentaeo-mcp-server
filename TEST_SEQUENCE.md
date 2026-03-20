@@ -32,14 +32,16 @@ npx ./agentaeo-mcp-server-0.1.0.tgz
 
 ## 5. Claude Desktop local test
 
-Add to Claude config:
+**Use an absolute path** — `./agentaeo-mcp-server-0.1.0.tgz` fails in Claude Desktop because its cwd is not your repo.
+
+Example (adjust username/path):
 
 ```json
 {
   "mcpServers": {
     "agentaeo": {
       "command": "npx",
-      "args": ["./agentaeo-mcp-server-0.1.0.tgz"],
+      "args": ["-y", "/Users/aashishn/agents/agentaeo-mcp-server/agentaeo-mcp-server-0.1.0.tgz"],
       "env": {
         "AGENTAEO_API_KEY": "your_real_key"
       }
@@ -48,7 +50,9 @@ Add to Claude config:
 }
 ```
 
-- Restart Claude Desktop
+Or after `npm run build`, use `node` + `dist/index.js` (see README).
+
+- Fully quit and reopen Claude Desktop
 - Ask: "List your MCP tools" — should see `run_aeo_audit` and `check_aeo_audit_status`
 - Ask: "Run a free AEO audit for agentaeo.com" — should return auditId
 - Ask: "Check the status of that audit" — should return status/results
