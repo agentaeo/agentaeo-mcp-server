@@ -5,6 +5,12 @@
  *
  * Requires: AGENTAEO_API_KEY environment variable
  * Get your key at: https://agentaeo.com/agents
+ *
+ * Note: Claude Desktop often limits a *single tool call* to ~60s. `run_aeo_audit` therefore
+ * returns immediately after the server accepts the job (HTTP 202 + auditId). The model must
+ * call `check_aeo_audit_status` every 10–15s until `is_complete` / `free_preview_ready`.
+ * Set AGENTAEO_MCP_INLINE_POLL=1 to embed polling inside run_aeo_audit (for clients with
+ * longer tool timeouts only).
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -12,6 +18,17 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 
 const API_BASE = "https://agentaeo-api.onrender.com";
+
+function defaultKeyword(urlStr: string, kw?: string): string {
+  const k = kw?.trim();
+  if (k) return k;
+  try {
+    const host = new URL(urlStr).hostname.replace(/^www\./, "").split(".")[0];
+    return host || "website";
+  } catch {
+    return "website";
+  }
+}
 
 function getApiKey(): string {
   const key = process.env.AGENTAEO_API_KEY?.trim();
@@ -29,29 +46,32 @@ function getApiKey(): string {
 
 async function main() {
   const apiKey = getApiKey();
+  const inlinePoll = process.env.AGENTAEO_MCP_INLINE_POLL === "1" || process.env.AGENTAEO_MCP_INLINE_POLL === "true";
 
   const server = new McpServer({
     name: "agentaeo",
-    version: "0.1.0",
+    version: "0.1.1",
   });
 
   server.tool(
     "run_aeo_audit",
-    "Run an AEO audit for a URL. Tests visibility across ChatGPT, Perplexity, Claude, and Google AI. Free tier: 8 queries. Paid tier: 40 queries with full blueprint.",
+    "Start an AEO audit for a URL (async). Returns auditId immediately. Then call check_aeo_audit_status every 10–15s until is_complete or free_preview_ready (free tier stops at step 2).",
     {
       url: z.string().url().describe("The website URL to audit (e.g. https://example.com)"),
-      keyword: z.string().optional().describe("Primary industry keyword for query generation (e.g. payment API)"),
+      keyword: z.string().optional().describe("Primary industry keyword; defaults from domain if omitted"),
       tier: z.enum(["free", "paid"]).optional().default("free").describe("Audit tier: free (8 queries) or paid (40 queries)"),
     },
     async ({ url, keyword, tier }) => {
       try {
+        const kw = defaultKeyword(url, keyword);
+
         const res = await fetch(`${API_BASE}/api/aeo-audit`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-API-Key": apiKey,
           },
-          body: JSON.stringify({ url, keyword: keyword || "", tier: tier || "free" }),
+          body: JSON.stringify({ url, keyword: kw, tier: tier || "free", async: true }),
         });
         const data = (await res.json()) as Record<string, unknown>;
         if (!res.ok) {
@@ -62,12 +82,61 @@ async function main() {
           };
         }
         const auditId = (data?.auditId ?? data?.audit_id ?? data?.id) as string | undefined;
-        const status = (data?.status as string) ?? "queued";
-        const text = auditId
-          ? `Audit started. auditId: ${auditId}\nStatus: ${status}\nUse check_aeo_audit_status with this auditId to poll for results.`
-          : JSON.stringify(data, null, 2);
+        if (!auditId) {
+          return {
+            content: [{ type: "text" as const, text: `Audit started but no auditId returned:\n${JSON.stringify(data, null, 2)}` }],
+          };
+        }
+
+        const reportUrl = `https://agentaeo.com/audit/${auditId}/summary`;
+
+        if (!inlinePoll) {
+          const text =
+            `✅ Audit job accepted (async).\n\n` +
+            `auditId: ${auditId}\n` +
+            `keyword used: ${kw}\n\n` +
+            `Next: call tool **check_aeo_audit_status** with this auditId every 10–15 seconds until **is_complete** or **free_preview_ready** is true (free reports finish at step 2; do not wait for step 5).\n\n` +
+            `View report when ready: ${reportUrl}\n\n` +
+            `Server response:\n${JSON.stringify(data, null, 2)}`;
+          return { content: [{ type: "text" as const, text }] };
+        }
+
+        // Optional long poll (may exceed Claude Desktop ~60s tool limit)
+        const POLL_INTERVAL_MS = 12000;
+        const MAX_POLLS = 30;
+        let lastStatus: Record<string, unknown> = {};
+
+        for (let i = 0; i < MAX_POLLS; i++) {
+          await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+
+          const pollRes = await fetch(`${API_BASE}/api/aeo-status/${auditId}`, {
+            method: "GET",
+            headers: { "X-API-Key": apiKey },
+          });
+          const pollData = (await pollRes.json()) as Record<string, unknown>;
+          lastStatus = pollData;
+
+          const isComplete = (pollData?.is_complete as boolean) === true;
+          const freePreviewReady = (pollData?.free_preview_ready as boolean) === true;
+          const isTerminal = (pollData?.is_terminal as boolean) === true;
+
+          if (isComplete || freePreviewReady || isTerminal) {
+            const text =
+              `✅ Audit complete!\n` +
+              `auditId: ${auditId}\n` +
+              `Status: ${pollData?.status ?? "free_preview"}\n` +
+              `free_preview_ready: ${freePreviewReady}\n` +
+              `View report: ${reportUrl}\n\n` +
+              `Raw response:\n${JSON.stringify(pollData, null, 2)}`;
+            return { content: [{ type: "text" as const, text }] };
+          }
+        }
+
         return {
-          content: [{ type: "text" as const, text }],
+          content: [{
+            type: "text" as const,
+            text: `Audit started (auditId: ${auditId}) but did not complete within 6 minutes.\nLast status:\n${JSON.stringify(lastStatus, null, 2)}\nUse check_aeo_audit_status with auditId "${auditId}" to continue polling.`,
+          }],
         };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -81,7 +150,7 @@ async function main() {
 
   server.tool(
     "check_aeo_audit_status",
-    "Check the status and results of an AEO audit. Poll this with the auditId returned from run_aeo_audit until status is completed.",
+    "Check status of an AEO audit. Call repeatedly with auditId until is_complete or free_preview_ready is true.",
     {
       auditId: z.string().describe("The audit ID returned from run_aeo_audit"),
     },
@@ -103,16 +172,15 @@ async function main() {
         }
         const status = (data?.status as string) ?? (data?.current_step != null ? "processing" : "unknown");
         const isComplete = (data?.is_complete as boolean) ?? (data?.status === "completed");
-        const score = data?.score;
-        const grade = data?.grade;
-        let text = `Status: ${status}\nis_complete: ${isComplete}`;
-        if (score != null) text += `\nScore: ${score}`;
-        if (grade) text += `\nGrade: ${grade}`;
-        if (isComplete && data?.findings) {
-          text += `\n\nFull results:\n${JSON.stringify(data, null, 2)}`;
-        } else {
-          text += `\n\nRaw response:\n${JSON.stringify(data, null, 2)}`;
-        }
+        const freePreviewReady = (data?.free_preview_ready as boolean) === true;
+        let text =
+          `Status: ${status}\n` +
+          `current_step: ${data?.current_step ?? "?"}\n` +
+          `is_complete: ${isComplete}\n` +
+          `free_preview_ready: ${freePreviewReady}\n`;
+        if (data?.score != null) text += `Score: ${data.score}\n`;
+        if (data?.grade) text += `Grade: ${data.grade}\n`;
+        text += `\nRaw response:\n${JSON.stringify(data, null, 2)}`;
         return {
           content: [{ type: "text" as const, text }],
         };
