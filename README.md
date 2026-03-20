@@ -2,6 +2,8 @@
 
 MCP (Model Context Protocol) server for [AgentAEO](https://agentaeo.com) — run AEO (Answer Engine Optimization) audits across ChatGPT, Perplexity, Claude, and Google AI.
 
+**Source:** [`agentaeo/agentaeo-mcp-server`](https://github.com/agentaeo/agentaeo-mcp-server) on GitHub (local folder name: `agentaeo-mcp-server`).
+
 ## Installation
 
 ```bash
@@ -53,6 +55,25 @@ Then: *"Check the status of that audit"* (Claude will use the returned auditId)
 
 - Node.js 18+
 - AgentAEO API key from [agentaeo.com/agents](https://agentaeo.com/agents)
+
+## Development & publishing
+
+Run all **npm** commands from the repo root (the folder that contains `package.json`), e.g.:
+
+```bash
+cd ~/agents/agentaeo-mcp-server   # or your path to agentaeo-mcp-server
+npm install
+npm run build
+npm pack                          # optional: test tarball before publish
+```
+
+Publish (after `npm login` and scope access for `@agentaeo`):
+
+```bash
+npm publish --access public
+```
+
+**GitHub vs npm:** The GitHub repo can stay **private**; the **npm package** `@agentaeo/mcp-server` is usually **public** so `npx @agentaeo/mcp-server` works for everyone. Those are independent settings.
 
 ## License
 

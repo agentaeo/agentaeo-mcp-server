@@ -9,8 +9,8 @@
 
 1. `git init` (already done here)
 2. `git add` + `git commit`
-3. Create an **empty** repo on GitHub (e.g. `agentaeo/mcp-server`) — no README if you want a clean first push
-4. `git remote add origin https://github.com/agentaeo/mcp-server.git`
+3. Create an **empty** repo on GitHub (e.g. `agentaeo/agentaeo-mcp-server`) — no README if you want a clean first push
+4. `git remote add origin https://github.com/agentaeo/agentaeo-mcp-server.git`
 5. `git push -u origin main`
 
 You can do steps 3–5 in **Terminal**; GitHub Desktop can **open** this folder after the first push (“Add Local Repository”).
@@ -21,7 +21,7 @@ You can do steps 3–5 in **Terminal**; GitHub Desktop can **open** this folder 
 
 | Step | What you do |
 |------|-------------|
-| 1 | **GitHub:** Create repo `agentaeo/mcp-server` (empty, or with README — see below). |
+| 1 | **GitHub:** Create repo `agentaeo/agentaeo-mcp-server` (empty, or with README — see below). |
 | 2 | **SSH vs HTTPS:** Prefer HTTPS + GitHub credential helper, or add SSH key to GitHub. |
 | 3 | **npm:** `npm login` (for `@agentaeo` scope: org must exist on npm, or change scope in `package.json`). |
 | 4 | **Secrets:** Real `agentaeo_live_*` key for E2E tests (never commit). |
@@ -43,8 +43,8 @@ If repo is **empty**, a normal `git push -u origin main` is enough.
 ```bash
 cd /Users/aashishn/agents/agentaeo-mcp-server
 
-git remote add origin https://github.com/agentaeo/mcp-server.git
-# If remote already exists: git remote set-url origin https://github.com/agentaeo/mcp-server.git
+git remote add origin https://github.com/agentaeo/agentaeo-mcp-server.git
+# If remote already exists: git remote set-url origin https://github.com/agentaeo/agentaeo-mcp-server.git
 
 git push -u origin main
 ```
