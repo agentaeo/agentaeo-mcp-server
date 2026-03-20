@@ -50,7 +50,7 @@ async function main() {
 
   const server = new McpServer({
     name: "agentaeo",
-    version: "0.1.1",
+    version: "0.1.2",
   });
 
   server.tool(
@@ -65,13 +65,18 @@ async function main() {
       try {
         const kw = defaultKeyword(url, keyword);
 
+        const tierVal = tier || "free";
         const res = await fetch(`${API_BASE}/api/aeo-audit`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-API-Key": apiKey,
+            // Ensures Render applies admin paid bypass if body tier is lost by a proxy/client
+            ...(String(tierVal).toLowerCase() === "paid"
+              ? { "X-AgentAEO-Admin-Paid-Tier": "1" }
+              : {}),
           },
-          body: JSON.stringify({ url, keyword: kw, tier: tier || "free", async: true }),
+          body: JSON.stringify({ url, keyword: kw, tier: tierVal, async: true }),
         });
         const data = (await res.json()) as Record<string, unknown>;
         if (!res.ok) {

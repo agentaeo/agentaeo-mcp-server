@@ -1,6 +1,6 @@
 {
   "name": "@agentaeo/mcp-server",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "MCP server for AgentAEO — run AEO audits across ChatGPT, Perplexity, Claude, and Google AI",
   "type": "module",
   "main": "./dist/index.js",
