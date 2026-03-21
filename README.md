@@ -1,5 +1,8 @@
 # @agentaeo/mcp-server
 
+[![agentaeo-mcp-server MCP server](https://glama.ai/mcp/servers/agentaeo/agentaeo-mcp-server/badges/card.svg)](https://glama.ai/mcp/servers/agentaeo/agentaeo-mcp-server)
+[![agentaeo-mcp-server MCP server](https://glama.ai/mcp/servers/agentaeo/agentaeo-mcp-server/badges/score.svg)](https://glama.ai/mcp/servers/agentaeo/agentaeo-mcp-server)
+
 MCP (Model Context Protocol) server for [AgentAEO](https://agentaeo.com) — run AEO (Answer Engine Optimization) audits across ChatGPT, Perplexity, Claude, and Google AI.
 
 **Source:** [`agentaeo/agentaeo-mcp-server`](https://github.com/agentaeo/agentaeo-mcp-server) on GitHub (local folder name: `agentaeo-mcp-server`).
@@ -84,7 +87,7 @@ After editing the config, **fully quit Claude Desktop** (Cmd+Q) and reopen. Chec
 
 **Env (optional):** `AGENTAEO_MCP_INLINE_POLL=1` — long poll inside `run_aeo_audit`. `AGENTAEO_MCP_INLINE_CONTENT_POLL=1` — long poll inside `generate_aeo_content_suite` (both can exceed Claude Desktop’s ~60s tool limit). **`AGENTAEO_MCP_DOWNLOAD_DIR`** — where to save Content Suite ZIPs from `download_aeo_content_suite_zip`.
 
-**Terminal:** `download-content.mjs` — set `AGENTAEO_API_KEY` (or read from Claude Desktop config on Mac); optional `ORDER_ID`, `OUT_FILE`.
+**Terminal:** `download-content.mjs` — set **`ORDER_ID`** (completed content order UUID), `AGENTAEO_API_KEY` (or read from Claude Desktop config on Mac); optional `OUT_FILE`.
 
 ### Why your agent can’t `curl` with `$AGENTAEO_API_KEY`
 
@@ -122,4 +125,6 @@ npm publish --access public
 
 ## License
 
-MIT
+[MIT](LICENSE) — AIMetica Solutions LLP.
+
+**Glama / directories:** See [docs/GLAMA.md](docs/GLAMA.md) for claiming authorship and score checklist.

@@ -1,6 +1,6 @@
 {
   "name": "@agentaeo/mcp-server",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "MCP server for AgentAEO — run AEO audits across ChatGPT, Perplexity, Claude, and Google AI",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,7 +9,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc",
@@ -27,7 +28,12 @@
     "ai-search",
     "seo",
     "marketing",
-    "brand-visibility"
+    "brand-visibility",
+    "analytics",
+    "chatgpt",
+    "perplexity",
+    "claude",
+    "google-ai"
   ],
   "author": "AIMetica Solutions LLP <agents@agentaeo.com>",
   "license": "MIT",

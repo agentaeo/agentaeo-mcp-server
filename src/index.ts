@@ -59,7 +59,7 @@ async function main() {
 
   const server = new McpServer({
     name: "agentaeo",
-    version: "0.1.7",
+    version: "0.1.8",
   });
 
   server.tool(
