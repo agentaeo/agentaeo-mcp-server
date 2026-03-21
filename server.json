@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.agentaeo/agentaeo-mcp-server",
-  "description": "Audit your brand's visibility across ChatGPT, Perplexity, Claude, and Google AI — get citation rates, AEO health scores, content gap analysis, and a 9-page content suite to rank in AI-generated answers.",
+  "description": "AEO audit tool — measure brand visibility across ChatGPT, Perplexity, Claude, and Google AI.",
   "repository": {
     "url": "https://github.com/agentaeo/agentaeo-mcp-server.git",
     "source": "github"
@@ -11,21 +11,15 @@
   },
   "packages": [
     {
-      "registry_name": "npm",
-      "name": "@agentaeo/mcp-server",
+      "registryType": "npm",
+      "identifier": "@agentaeo/mcp-server",
       "version": "0.1.8",
       "runtime_hint": "node",
       "environment_variables": [
         {
           "name": "AGENTAEO_API_KEY",
-          "description": "Your AgentAEO API key — get one at https://agentaeo.com/agents",
+          "description": "AgentAEO API key — get one at https://agentaeo.com/agents",
           "required": true
-        }
-      ],
-      "package_arguments": [
-        {
-          "type": "positional",
-          "value_hint": "npx -y @agentaeo/mcp-server"
         }
       ]
     }
