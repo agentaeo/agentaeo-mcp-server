@@ -8,3 +8,4 @@ content-suite-*.zip
 content-stripe-*.zip
 *.zip
 DIRECTORY_SUBMISSIONS.md
+.mcpregistry_github_token
