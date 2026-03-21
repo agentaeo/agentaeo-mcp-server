@@ -50,7 +50,7 @@ async function main() {
 
   const server = new McpServer({
     name: "agentaeo",
-    version: "0.1.3",
+    version: "0.1.4",
   });
 
   server.tool(
@@ -100,7 +100,7 @@ async function main() {
             `✅ Audit job accepted (async).\n\n` +
             `auditId: ${auditId}\n` +
             `keyword used: ${kw}\n\n` +
-            `Next: call tool **check_aeo_audit_status** with this auditId every 10–15 seconds until **is_complete** or **free_preview_ready** is true (free reports finish at step 2; do not wait for step 5).\n\n` +
+            `Next: call tool **check_aeo_audit_status** every 10–15s: **free** tier → stop when **free_preview_ready**; **paid** tier → keep polling until **is_complete** (full report, step 5). If **paid_pipeline_pending** is true, the paid pipeline is still running — keep polling.\n\n` +
             `View report when ready: ${reportUrl}\n\n` +
             `Server response:\n${JSON.stringify(data, null, 2)}`;
           return { content: [{ type: "text" as const, text }] };
@@ -121,10 +121,14 @@ async function main() {
           const pollData = (await pollRes.json()) as Record<string, unknown>;
           lastStatus = pollData;
 
+          const paidPipelinePending = (pollData?.paid_pipeline_pending as boolean) === true;
           const isComplete = (pollData?.is_complete as boolean) === true;
           const freePreviewReady = (pollData?.free_preview_ready as boolean) === true;
           const isTerminal = (pollData?.is_terminal as boolean) === true;
 
+          if (paidPipelinePending) {
+            continue;
+          }
           if (isComplete || freePreviewReady || isTerminal) {
             const text =
               `✅ Audit complete!\n` +
@@ -155,7 +159,7 @@ async function main() {
 
   server.tool(
     "check_aeo_audit_status",
-    "Check status of an AEO audit. Call repeatedly with auditId until is_complete or free_preview_ready is true.",
+    "Check status of an AEO audit. Poll until free_preview_ready (free) or is_complete at full report (paid). If paid_pipeline_pending is true, keep polling.",
     {
       auditId: z.string().describe("The audit ID returned from run_aeo_audit"),
     },
@@ -178,11 +182,13 @@ async function main() {
         const status = (data?.status as string) ?? (data?.current_step != null ? "processing" : "unknown");
         const isComplete = (data?.is_complete as boolean) ?? (data?.status === "completed");
         const freePreviewReady = (data?.free_preview_ready as boolean) === true;
+        const paidPipelinePending = (data?.paid_pipeline_pending as boolean) === true;
         let text =
           `Status: ${status}\n` +
           `current_step: ${data?.current_step ?? "?"}\n` +
           `is_complete: ${isComplete}\n` +
-          `free_preview_ready: ${freePreviewReady}\n`;
+          `free_preview_ready: ${freePreviewReady}\n` +
+          `paid_pipeline_pending: ${paidPipelinePending}\n`;
         if (data?.score != null) text += `Score: ${data.score}\n`;
         if (data?.grade) text += `Grade: ${data.grade}\n`;
         text += `\nRaw response:\n${JSON.stringify(data, null, 2)}`;
