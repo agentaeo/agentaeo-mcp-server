@@ -15,6 +15,9 @@
       "identifier": "@agentaeo/mcp-server",
       "version": "0.1.8",
       "runtime_hint": "node",
+      "transport": {
+        "type": "stdio"
+      },
       "environment_variables": [
         {
           "name": "AGENTAEO_API_KEY",
