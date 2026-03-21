@@ -11,37 +11,42 @@ npm run build
 ## 2. Pack & verify tarball
 
 ```bash
-npm pack
-# Verify: agentaeo-mcp-server-0.1.0.tgz created
+TGZ=$(npm pack | tail -1)
+echo "Packed: $TGZ"
+# Filename matches version in package.json, e.g. agentaeo-mcp-server-0.1.7.tgz
 ```
 
 ## 3. Test with API key (server starts)
 
 ```bash
-AGENTAEO_API_KEY=test npx ./agentaeo-mcp-server-0.1.0.tgz
+TGZ=$(ls -1 agentaeo-mcp-server-*.tgz 2>/dev/null | tail -1)
+AGENTAEO_API_KEY=test npx "./$TGZ"
 # Server should start (stdio mode, waits for input). Ctrl+C to exit.
 ```
+
+(Or run `npm pack` first, then `npx "./agentaeo-mcp-server-<version>.tgz"` using the printed name.)
 
 ## 4. Test without API key (exits with error)
 
 ```bash
+TGZ=$(ls -1 agentaeo-mcp-server-*.tgz 2>/dev/null | tail -1)
 unset AGENTAEO_API_KEY
-npx ./agentaeo-mcp-server-0.1.0.tgz
+npx "./$TGZ"
 # Should exit with code 1 and clear error message
 ```
 
 ## 5. Claude Desktop local test
 
-**Use an absolute path** — `./agentaeo-mcp-server-0.1.0.tgz` fails in Claude Desktop because its cwd is not your repo.
+**Use an absolute path** — a bare `./agentaeo-mcp-server-*.tgz` may fail in Claude Desktop because its cwd is not your repo.
 
-Example (adjust username/path):
+After `npm pack`, take the printed filename (e.g. `agentaeo-mcp-server-0.1.7.tgz`) and use the **full path** to that file:
 
 ```json
 {
   "mcpServers": {
     "agentaeo": {
       "command": "npx",
-      "args": ["-y", "/Users/aashishn/agents/agentaeo-mcp-server/agentaeo-mcp-server-0.1.0.tgz"],
+      "args": ["-y", "/Users/aashishn/agents/agentaeo-mcp-server/agentaeo-mcp-server-0.1.7.tgz"],
       "env": {
         "AGENTAEO_API_KEY": "your_real_key"
       }
@@ -49,6 +54,8 @@ Example (adjust username/path):
   }
 }
 ```
+
+Replace the path and `.tgz` name with **your** machine path and the file from **`npm pack`**.
 
 Or after `npm run build`, use `node` + `dist/index.js` (see README).
 
