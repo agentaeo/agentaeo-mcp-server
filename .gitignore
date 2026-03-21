@@ -4,3 +4,7 @@ dist/
 .env
 .DS_Store
 content-stripe-2d89baf3.zip
+content-suite-*.zip
+content-stripe-*.zip
+*.zip
+DIRECTORY_SUBMISSIONS.md
