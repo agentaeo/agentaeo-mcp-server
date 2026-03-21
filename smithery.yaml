@@ -1,0 +1,16 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+
+configSchema:
+  type: object
+  required:
+    - agentaeoApiKey
+  properties:
+    agentaeoApiKey:
+      type: string
+      description: Your AgentAEO API key (get one at https://agentaeo.com/agents)
+
+commandFunction: |-
+  config => ({ command: 'npx', args: ['-y', '@agentaeo/mcp-server'], env: { AGENTAEO_API_KEY: config.agentaeoApiKey } })
