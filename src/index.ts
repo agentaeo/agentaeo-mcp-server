@@ -11,6 +11,9 @@
  * call `check_aeo_audit_status` every 10–15s until `is_complete` / `free_preview_ready`.
  * Set AGENTAEO_MCP_INLINE_POLL=1 to embed polling inside run_aeo_audit (for clients with
  * longer tool timeouts only).
+ *
+ * Content Suite: use **generate_aeo_content_suite** so the model never needs shell access to
+ * AGENTAEO_API_KEY (VM sandboxes like Cowork cannot read claude_desktop_config.json).
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -50,7 +53,7 @@ async function main() {
 
   const server = new McpServer({
     name: "agentaeo",
-    version: "0.1.4",
+    version: "0.1.5",
   });
 
   server.tool(
@@ -195,6 +198,86 @@ async function main() {
         return {
           content: [{ type: "text" as const, text }],
         };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return {
+          content: [{ type: "text" as const, text: `Error: ${msg}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    "generate_aeo_content_suite",
+    "Generate Content Suite (HTML + JSON-LD + llms.txt) for a completed audit. Uses the same AGENTAEO_API_KEY as run_aeo_audit — no shell/curl. WARNING: may run 10–25+ minutes; client may timeout — prefer a host with a long tool timeout. For admin testing without Cashfree: set adminContentBypass=true (requires admin or allowlisted agent key). Otherwise pass orderId from aeo_content_orders after payment.",
+    {
+      auditId: z.string().describe("Completed audit id (e.g. aud_xxx_timestamp)"),
+      packageType: z.enum(["full", "faq"]).optional().default("full").describe("Content bundle type"),
+      orderId: z
+        .string()
+        .optional()
+        .describe("UUID from aeo_content_orders after $499 payment. Required when adminContentBypass is false."),
+      adminContentBypass: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe(
+          "If true: omit orderId; server creates aeo_content_orders (admin/allowlisted key + X-AgentAEO-Admin-Content). For internal QA only."
+        ),
+    },
+    async ({ auditId, packageType, orderId, adminContentBypass }) => {
+      try {
+        const adminBypass = adminContentBypass === true;
+        if (!adminBypass && (!orderId || !orderId.trim())) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text:
+                  "Error: either pass orderId (after Cashfree content purchase) or set adminContentBypass=true for admin testing.",
+              },
+            ],
+            isError: true,
+          };
+        }
+        const pkg = packageType || "full";
+        const body: Record<string, unknown> = {
+          auditid: auditId.trim(),
+          packagetype: pkg,
+        };
+        if (orderId && orderId.trim() && !adminBypass) {
+          body.orderid = orderId.trim();
+        }
+        if (adminBypass) {
+          body.admin_content_bypass = true;
+        }
+
+        const res = await fetch(`${API_BASE}/api/aeo-generate-content`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-Key": apiKey,
+            ...(adminBypass ? { "X-AgentAEO-Admin-Content": "1" } : {}),
+          },
+          body: JSON.stringify(body),
+        });
+        const data = (await res.json()) as Record<string, unknown>;
+        if (!res.ok) {
+          const err = (data?.error as string) || (data?.message as string) || `HTTP ${res.status}`;
+          return {
+            content: [{ type: "text" as const, text: `Error: ${err}\n\n${JSON.stringify(data, null, 2)}` }],
+            isError: true,
+          };
+        }
+        const text =
+          `✅ Content Suite generation finished.\n\n` +
+          `orderid: ${data?.orderid ?? "?"}\n` +
+          `auditid: ${data?.auditid ?? auditId}\n` +
+          `pages: ${data?.pagesgenerated ?? "?"}\n` +
+          `download (use same X-API-Key as GET): ${API_BASE}${data?.downloadurl ?? ""}\n\n` +
+          `Full JSON:\n${JSON.stringify(data, null, 2)}`;
+        return { content: [{ type: "text" as const, text }] };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {

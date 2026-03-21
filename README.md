@@ -78,6 +78,11 @@ After editing the config, **fully quit Claude Desktop** (Cmd+Q) and reopen. Chec
 |------|-------------|
 | `run_aeo_audit` | Run an AEO audit for a URL. Free: 8 queries. Paid: 40 queries with full blueprint. |
 | `check_aeo_audit_status` | Poll audit status and retrieve results. Use the `auditId` from `run_aeo_audit`. |
+| `generate_aeo_content_suite` | Generate Content Suite ZIP path (HTML + JSON-LD + `llms.txt`) for a **completed** audit. Uses the same `AGENTAEO_API_KEY` as the other tools (no shell). **Admin testing:** `adminContentBypass=true` + admin/allowlisted key. **Production:** pass `orderId` from `aeo_content_orders` after payment. Can take **10–25+ minutes** — some clients may timeout. |
+
+### Why your agent can’t `curl` with `$AGENTAEO_API_KEY`
+
+Sandbox VMs (e.g. Cowork) **do not** load `claude_desktop_config.json` and **do not** inherit your laptop’s shell `export`. Only processes started with that env (e.g. this MCP server) have the key. **Use `generate_aeo_content_suite` from Claude Desktop with MCP enabled**, or paste the key into the sandbox’s own secrets/env if the product supports it.
 
 ## Example
 
