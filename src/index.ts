@@ -12,8 +12,10 @@
  * Set AGENTAEO_MCP_INLINE_POLL=1 to embed polling inside run_aeo_audit (for clients with
  * longer tool timeouts only).
  *
- * Content Suite: use **generate_aeo_content_suite** so the model never needs shell access to
- * AGENTAEO_API_KEY (VM sandboxes like Cowork cannot read claude_desktop_config.json).
+ * Content Suite: **generate_aeo_content_suite** sends `async: true` (HTTP 202 + orderId) so the
+ * tool returns under ~60s; poll **check_aeo_content_suite_status** every 15–30s (generation often
+ * 5–25+ min). AGENTAEO_MCP_INLINE_CONTENT_POLL=1 embeds polling (long tool call). Same
+ * AGENTAEO_API_KEY as audits — no shell/curl (works in VM sandboxes that cannot read Desktop config).
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -50,10 +52,12 @@ function getApiKey(): string {
 async function main() {
   const apiKey = getApiKey();
   const inlinePoll = process.env.AGENTAEO_MCP_INLINE_POLL === "1" || process.env.AGENTAEO_MCP_INLINE_POLL === "true";
+  const inlineContentPoll =
+    process.env.AGENTAEO_MCP_INLINE_CONTENT_POLL === "1" || process.env.AGENTAEO_MCP_INLINE_CONTENT_POLL === "true";
 
   const server = new McpServer({
     name: "agentaeo",
-    version: "0.1.5",
+    version: "0.1.6",
   });
 
   server.tool(
@@ -209,8 +213,54 @@ async function main() {
   );
 
   server.tool(
+    "check_aeo_content_suite_status",
+    "Poll Content Suite generation. After generate_aeo_content_suite returns (HTTP 202), call every 15–30s until status is completed or failed. Same X-API-Key as generate.",
+    {
+      orderId: z.string().describe("orderid returned from generate_aeo_content_suite"),
+    },
+    async ({ orderId }) => {
+      try {
+        const oid = orderId.trim();
+        if (!oid) {
+          return {
+            content: [{ type: "text" as const, text: "Error: orderId is required" }],
+            isError: true,
+          };
+        }
+        const res = await fetch(`${API_BASE}/api/aeo-content-status/${encodeURIComponent(oid)}`, {
+          method: "GET",
+          headers: { "X-API-Key": apiKey },
+        });
+        const data = (await res.json()) as Record<string, unknown>;
+        if (!res.ok) {
+          const err = (data?.error as string) || (data?.message as string) || `HTTP ${res.status}`;
+          return {
+            content: [{ type: "text" as const, text: `Error: ${err}\n\n${JSON.stringify(data, null, 2)}` }],
+            isError: true,
+          };
+        }
+        const status = (data?.status as string) ?? "unknown";
+        const downloadUrl = data?.download_url as string | null | undefined;
+        let text =
+          `orderid: ${data?.orderid ?? oid}\n` +
+          `status: ${status}\n` +
+          (downloadUrl ? `download_url: ${downloadUrl}\n` : "") +
+          `\nWhen status is **completed**, GET the ZIP with the same X-API-Key (see download_url).\n\n` +
+          `Raw response:\n${JSON.stringify(data, null, 2)}`;
+        return { content: [{ type: "text" as const, text }] };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return {
+          content: [{ type: "text" as const, text: `Error: ${msg}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
     "generate_aeo_content_suite",
-    "Generate Content Suite (HTML + JSON-LD + llms.txt) for a completed audit. Uses the same AGENTAEO_API_KEY as run_aeo_audit — no shell/curl. WARNING: may run 10–25+ minutes; client may timeout — prefer a host with a long tool timeout. For admin testing without Cashfree: set adminContentBypass=true (requires admin or allowlisted agent key). Otherwise pass orderId from aeo_content_orders after payment.",
+    "Start Content Suite generation (HTML + JSON-LD + llms.txt) for a completed audit — **async** (returns in seconds with orderId). Poll check_aeo_content_suite_status every 15–30s until completed (often 5–25+ min). Uses AGENTAEO_API_KEY — no shell/curl. Admin QA without Cashfree: adminContentBypass=true + allowlisted key. Otherwise pass orderId after payment.",
     {
       auditId: z.string().describe("Completed audit id (e.g. aud_xxx_timestamp)"),
       packageType: z.enum(["full", "faq"]).optional().default("full").describe("Content bundle type"),
@@ -245,6 +295,7 @@ async function main() {
         const body: Record<string, unknown> = {
           auditid: auditId.trim(),
           packagetype: pkg,
+          async: true,
         };
         if (orderId && orderId.trim() && !adminBypass) {
           body.orderid = orderId.trim();
@@ -270,6 +321,114 @@ async function main() {
             isError: true,
           };
         }
+
+        const resolvedOrderId = String(data?.orderid ?? data?.order_id ?? "").trim();
+        const syncStatus = String(data?.status ?? "").toLowerCase();
+
+        // Sync path: already complete or idempotent "already generating" (HTTP 200)
+        if (res.status === 200) {
+          if (syncStatus === "completed" && data?.downloadurl) {
+            const text =
+              `✅ Content Suite already complete.\n\n` +
+              `orderid: ${resolvedOrderId}\n` +
+              `auditid: ${data?.auditid ?? auditId}\n` +
+              `download (GET with same X-API-Key): ${API_BASE}${data?.downloadurl}\n\n` +
+              `Full JSON:\n${JSON.stringify(data, null, 2)}`;
+            return { content: [{ type: "text" as const, text }] };
+          }
+          if (syncStatus === "generating" && resolvedOrderId) {
+            if (!inlineContentPoll) {
+              const text =
+                `✅ Content generation already in progress (or accepted).\n\n` +
+                `orderid: ${resolvedOrderId}\n\n` +
+                `Next: call **check_aeo_content_suite_status** every 15–30s until status is **completed**.\n\n` +
+                `Server response:\n${JSON.stringify(data, null, 2)}`;
+              return { content: [{ type: "text" as const, text }] };
+            }
+            // fall through to inline poll using resolvedOrderId
+          } else if (!resolvedOrderId) {
+            const text = `Unexpected 200 response:\n${JSON.stringify(data, null, 2)}`;
+            return { content: [{ type: "text" as const, text }] };
+          }
+        }
+
+        // HTTP 202 async accepted — or inline poll from "generating" 200
+        if (res.status === 202 || (inlineContentPoll && resolvedOrderId && (res.status === 202 || syncStatus === "generating"))) {
+          const oid = resolvedOrderId;
+          if (!oid) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Async response missing orderid:\n${JSON.stringify(data, null, 2)}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          if (!inlineContentPoll) {
+            const text =
+              `✅ Content Suite job accepted (**async**).\n\n` +
+              `orderid: ${oid}\n` +
+              `auditid: ${data?.auditid ?? auditId}\n\n` +
+              `Next: call **check_aeo_content_suite_status** every 15–30s until status is **completed** or **failed** (often 5–25+ minutes).\n` +
+              (data?.pollUrl ? `Poll URL: ${data.pollUrl}\n` : "") +
+              `\nServer response:\n${JSON.stringify(data, null, 2)}`;
+            return { content: [{ type: "text" as const, text }] };
+          }
+
+          const POLL_INTERVAL_MS = 20000;
+          const MAX_POLLS = 150;
+          let last: Record<string, unknown> = {};
+
+          for (let i = 0; i < MAX_POLLS; i++) {
+            if (i > 0) await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+
+            const pollRes = await fetch(`${API_BASE}/api/aeo-content-status/${encodeURIComponent(oid)}`, {
+              method: "GET",
+              headers: { "X-API-Key": apiKey },
+            });
+            last = (await pollRes.json()) as Record<string, unknown>;
+            if (!pollRes.ok) break;
+
+            const st = String(last?.status ?? "").toLowerCase();
+            if (st === "failed") {
+              return {
+                content: [
+                  {
+                    type: "text" as const,
+                    text: `Content generation failed for order ${oid}.\n\n${JSON.stringify(last, null, 2)}`,
+                  },
+                ],
+                isError: true,
+              };
+            }
+            if (st === "completed") {
+              const du = (last?.download_url as string) || `${API_BASE}/api/aeo-content-download/${oid}`;
+              const text =
+                `✅ Content Suite generation finished.\n\n` +
+                `orderid: ${oid}\n` +
+                `download (GET with same X-API-Key): ${du}\n\n` +
+                `Last poll:\n${JSON.stringify(last, null, 2)}`;
+              return { content: [{ type: "text" as const, text }] };
+            }
+          }
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text:
+                  `Content job started (orderid: ${oid}) but did not complete within ~50 minutes of polling.\n` +
+                  `Last status:\n${JSON.stringify(last, null, 2)}\n\n` +
+                  `Use **check_aeo_content_suite_status** with orderId "${oid}" to continue.`,
+              },
+            ],
+          };
+        }
+
+        // Synchronous completion (HTTP 200 full result — e.g. server without async or legacy)
         const text =
           `✅ Content Suite generation finished.\n\n` +
           `orderid: ${data?.orderid ?? "?"}\n` +

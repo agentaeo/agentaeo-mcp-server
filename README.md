@@ -76,9 +76,12 @@ After editing the config, **fully quit Claude Desktop** (Cmd+Q) and reopen. Chec
 
 | Tool | Description |
 |------|-------------|
-| `run_aeo_audit` | Run an AEO audit for a URL. Free: 8 queries. Paid: 40 queries with full blueprint. |
+| `run_aeo_audit` | Run an AEO audit for a URL (async). Returns `auditId` in seconds; poll `check_aeo_audit_status` every 10–15s. |
 | `check_aeo_audit_status` | Poll audit status and retrieve results. Use the `auditId` from `run_aeo_audit`. |
-| `generate_aeo_content_suite` | Generate Content Suite ZIP path (HTML + JSON-LD + `llms.txt`) for a **completed** audit. Uses the same `AGENTAEO_API_KEY` as the other tools (no shell). **Admin testing:** `adminContentBypass=true` + admin/allowlisted key. **Production:** pass `orderId` from `aeo_content_orders` after payment. Can take **10–25+ minutes** — some clients may timeout. |
+| `generate_aeo_content_suite` | Start Content Suite generation (async). Sends `async: true` → **HTTP 202** + `orderId`; poll **`check_aeo_content_suite_status`** every 15–30s until complete (often **5–25+ min**). Same `AGENTAEO_API_KEY`. **Admin testing:** `adminContentBypass=true` + allowlisted key. **Production:** `orderId` from `aeo_content_orders` after payment. |
+| `check_aeo_content_suite_status` | Poll Content Suite job status; use `orderId` from `generate_aeo_content_suite`. When `status` is `completed`, use `download_url` (GET with same key). |
+
+**Env (optional):** `AGENTAEO_MCP_INLINE_POLL=1` — long poll inside `run_aeo_audit`. `AGENTAEO_MCP_INLINE_CONTENT_POLL=1` — long poll inside `generate_aeo_content_suite` (both can exceed Claude Desktop’s ~60s tool limit).
 
 ### Why your agent can’t `curl` with `$AGENTAEO_API_KEY`
 
