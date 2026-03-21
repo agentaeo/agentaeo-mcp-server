@@ -18,6 +18,8 @@
  * AGENTAEO_API_KEY as audits — no shell/curl (works in VM sandboxes that cannot read Desktop config).
  */
 
+import { mkdirSync, writeFileSync } from "fs";
+import { join } from "path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -57,7 +59,7 @@ async function main() {
 
   const server = new McpServer({
     name: "agentaeo",
-    version: "0.1.6",
+    version: "0.1.7",
   });
 
   server.tool(
@@ -248,6 +250,73 @@ async function main() {
           `\nWhen status is **completed**, GET the ZIP with the same X-API-Key (see download_url).\n\n` +
           `Raw response:\n${JSON.stringify(data, null, 2)}`;
         return { content: [{ type: "text" as const, text }] };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return {
+          content: [{ type: "text" as const, text: `Error: ${msg}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.tool(
+    "download_aeo_content_suite_zip",
+    "Download the Content Suite ZIP after status is **completed** (same AGENTAEO_API_KEY as generate). Saves to cwd or AGENTAEO_MCP_DOWNLOAD_DIR.",
+    {
+      orderId: z.string().describe("orderid UUID from generate_aeo_content_suite / check_aeo_content_suite_status"),
+      outputFileName: z
+        .string()
+        .optional()
+        .describe("Optional filename, e.g. content-stripe.zip (default: content-suite-<first8ofuuid>.zip)"),
+    },
+    async ({ orderId, outputFileName }) => {
+      try {
+        const oid = orderId.trim();
+        if (!oid) {
+          return {
+            content: [{ type: "text" as const, text: "Error: orderId is required" }],
+            isError: true,
+          };
+        }
+        const name = (outputFileName?.trim() || `content-suite-${oid.replace(/-/g, "").slice(0, 8)}.zip`) as string;
+        const dir = (process.env.AGENTAEO_MCP_DOWNLOAD_DIR || "").trim() || process.cwd();
+        mkdirSync(dir, { recursive: true });
+
+        const res = await fetch(`${API_BASE}/api/aeo-content-download/${encodeURIComponent(oid)}`, {
+          method: "GET",
+          headers: { "X-API-Key": apiKey },
+        });
+        if (!res.ok) {
+          const errBody = await res.text();
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text:
+                  `HTTP ${res.status} downloading ZIP.\n` +
+                  (res.status === 403
+                    ? "If this persists, ensure Render has the latest backend (portal Agent API key allowed on GET /api/aeo-content-download).\n"
+                    : "") +
+                  `\nBody (truncated): ${errBody.slice(0, 800)}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        const buf = Buffer.from(await res.arrayBuffer());
+        const outPath = join(dir, name);
+        writeFileSync(outPath, buf);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text:
+                `✅ Saved **${buf.length}** bytes to:\n\`${outPath}\`\n\n` +
+                `Unzip to inspect HTML, JSON-LD, llms.txt, README.`,
+            },
+          ],
+        };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
