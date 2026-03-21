@@ -35,7 +35,7 @@
     "claude",
     "google-ai"
   ],
-  "mcpName": "io.github.agentaeo/agentaeo-mcp-server",
+  "mcpName": "io.github.digitaldatadriven/agentaeo-mcp-server",
   "author": "AIMetica Solutions LLP <agents@agentaeo.com>",
   "license": "MIT",
   "repository": {
