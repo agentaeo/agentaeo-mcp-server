@@ -59,12 +59,62 @@ async function main() {
 
   const server = new McpServer({
     name: "agentaeo",
-    version: "0.1.8",
+    version: "0.1.9",
   });
+
+  server.registerResource(
+    "agentaeo-workflow",
+    "agentaeo://workflow",
+    {
+      title: "AgentAEO MCP workflow",
+      description:
+        "Static guide: recommended order for audits and optional content suite (audit → poll → generate → poll → download).",
+      mimeType: "text/markdown",
+    },
+    async (uri) => ({
+      contents: [
+        {
+          uri: uri.href,
+          mimeType: "text/markdown",
+          text: [
+            "# AgentAEO MCP workflow",
+            "",
+            "## Step 1 — Audit",
+            "1. Call **run_aeo_audit** with `url` (required), optional `keyword`, optional `tier` (`free` = 8 queries preview, `paid` = 40 queries full report).",
+            "2. You receive an **auditId** immediately (async job). This tool does not return the full report.",
+            "",
+            "## Step 2 — Poll audit",
+            "3. Call **check_aeo_audit_status** with that **auditId** every **10–15 seconds** until the job is done.",
+            "4. For **free** tier, stop when the preview is ready (see response fields such as `free_preview_ready`). For **paid**, keep polling until the full report is complete (`is_complete` / terminal success). If `paid_pipeline_pending` is true, keep polling.",
+            "5. If status indicates failure, stop polling.",
+            "",
+            "## Step 3 — Optional content suite (paid tier)",
+            "6. Only after the audit is successfully complete: call **generate_aeo_content_suite** with **auditId** (and `orderId` after purchase, or `adminContentBypass` only when AgentAEO support tells you to).",
+            "7. You receive an **orderId** (async). Call **check_aeo_content_suite_status** every **30 seconds** until status is completed or failed.",
+            "8. When completed: call **download_aeo_content_suite_zip** with **orderId** to save the ZIP (optional `outputFileName`; directory from `AGENTAEO_MCP_DOWNLOAD_DIR` or current working directory).",
+            "",
+            "Do not confuse **check_aeo_audit_status** (audit pipeline) with **check_aeo_content_suite_status** (content generation).",
+          ].join("\n"),
+        },
+      ],
+    })
+  );
 
   server.tool(
     "run_aeo_audit",
-    "Start an AEO audit for a URL (async). Returns auditId immediately. Then call check_aeo_audit_status every 10–15s until is_complete or free_preview_ready (free tier stops at step 2).",
+    [
+      "Initiates an asynchronous AEO (Answer Engine Optimization) audit for a given URL.",
+      "The audit measures the brand's AI citation rate, structured data health, and content gaps across ChatGPT, Perplexity, Claude, and Google AI.",
+      "",
+      "Returns an auditId string. ALWAYS follow up with check_aeo_audit_status using that auditId — this tool does not return results directly.",
+      "",
+      "Parameters:",
+      '- url (string, required): The full URL to audit (e.g. "https://example.com"). Must include protocol. Homepage or key landing pages work best.',
+      '- keyword (string, optional): Primary target keyword for the audit (e.g. "AI search visibility"). Defaults to topic inferred from the page.',
+      '- tier (string, optional): "free" (8 queries, preview report) or "paid" (40 queries, full 9-page report). Defaults to "free".',
+      "",
+      "Typical flow: run_aeo_audit → check_aeo_audit_status (poll every 10s) → optionally generate_aeo_content_suite.",
+    ].join("\n"),
     {
       url: z.string().url().describe("The website URL to audit (e.g. https://example.com)"),
       keyword: z.string().optional().describe("Primary industry keyword; defaults from domain if omitted"),
@@ -168,7 +218,17 @@ async function main() {
 
   server.tool(
     "check_aeo_audit_status",
-    "Check status of an AEO audit. Poll until free_preview_ready (free) or is_complete at full report (paid). If paid_pipeline_pending is true, keep polling.",
+    [
+      "Polls the status of a previously initiated AEO audit. Call this repeatedly every 10–15 seconds after run_aeo_audit until the audit is finished (success or failure per response fields).",
+      "",
+      "Returns full audit results when complete: AEO health score (0–100), citation rate per AI engine, structured data gaps, and content recommendations.",
+      "Free tier returns a preview; paid tier returns the full report.",
+      "",
+      "Parameters:",
+      "- auditId (string, required): The audit identifier returned by run_aeo_audit.",
+      "",
+      "Do NOT call this without a valid auditId. If status is still processing, wait 10 seconds and poll again. Stop polling if the response indicates failure.",
+    ].join("\n"),
     {
       auditId: z.string().describe("The audit ID returned from run_aeo_audit"),
     },
@@ -216,7 +276,16 @@ async function main() {
 
   server.tool(
     "check_aeo_content_suite_status",
-    "Poll Content Suite generation. After generate_aeo_content_suite returns (HTTP 202), call every 15–30s until status is completed or failed. Same X-API-Key as generate.",
+    [
+      "Polls the status of a content suite generation job. Call every 30 seconds after generate_aeo_content_suite until status is completed or failed.",
+      "",
+      "Returns a download-ready orderId and content summary when complete.",
+      "",
+      "Parameters:",
+      "- orderId (string, required): The order identifier returned by generate_aeo_content_suite.",
+      "",
+      "Do NOT confuse with check_aeo_audit_status — this polls content generation, not audit processing. Stop polling if status is failed.",
+    ].join("\n"),
     {
       orderId: z.string().describe("orderid returned from generate_aeo_content_suite"),
     },
@@ -262,7 +331,17 @@ async function main() {
 
   server.tool(
     "download_aeo_content_suite_zip",
-    "Download the Content Suite ZIP after status is **completed** (same AGENTAEO_API_KEY as generate). Saves to cwd or AGENTAEO_MCP_DOWNLOAD_DIR.",
+    [
+      "Downloads the completed AEO content suite as a ZIP file to the local filesystem.",
+      "Only call after check_aeo_content_suite_status returns status completed.",
+      "",
+      "The ZIP contains: FAQ JSON-LD schema, HowTo schema, Article schema, structured answer blocks (HTML + plain text), entity definition file, and a content brief.",
+      "",
+      "Parameters:",
+      "- orderId (string, required): Order ID from a completed content suite job.",
+      "- outputFileName (string, optional): Filename for the ZIP (default: content-suite-<prefix>.zip).",
+      "Save directory: set AGENTAEO_MCP_DOWNLOAD_DIR or defaults to the current working directory.",
+    ].join("\n"),
     {
       orderId: z.string().describe("orderid UUID from generate_aeo_content_suite / check_aeo_content_suite_status"),
       outputFileName: z
@@ -329,7 +408,19 @@ async function main() {
 
   server.tool(
     "generate_aeo_content_suite",
-    "Start Content Suite generation (HTML + JSON-LD + llms.txt) for a completed audit — **async** (returns in seconds with orderId). Poll check_aeo_content_suite_status every 15–30s until completed (often 5–25+ min). Uses AGENTAEO_API_KEY — no shell/curl. Admin QA without Cashfree: adminContentBypass=true + allowlisted key. Otherwise pass orderId after payment.",
+    [
+      "Generates a 9-page AEO content suite based on a completed audit. The suite includes FAQ schema, structured answer blocks, entity definitions, and AI-optimised page content ready for publication.",
+      "",
+      "This is an async operation — returns an orderId. ALWAYS follow up with check_aeo_content_suite_status using that orderId.",
+      "",
+      "Parameters:",
+      '- auditId (string, required): Must be from a COMPLETED audit (check_aeo_audit_status must show the audit finished successfully).',
+      "- adminContentBypass (boolean, optional): Internal QA mode. Do not set unless instructed by AgentAEO support.",
+      "- orderId (string, optional): Required for normal users after Cashfree content purchase.",
+      '- packageType (string, optional): "full" or "faq". Defaults to "full".',
+      "",
+      "Typical time to complete: 5–25 minutes. Only works with paid-tier audits.",
+    ].join("\n"),
     {
       auditId: z.string().describe("Completed audit id (e.g. aud_xxx_timestamp)"),
       packageType: z.enum(["full", "faq"]).optional().default("full").describe("Content bundle type"),
