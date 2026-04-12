@@ -44,6 +44,7 @@
   },
   "homepage": "https://agentaeo.com/agents",
   "dependencies": {
+    "@agentaeo/mcp-server": "^0.1.9",
     "@modelcontextprotocol/sdk": "^1.27.0",
     "zod": "^3.23.0"
   },
