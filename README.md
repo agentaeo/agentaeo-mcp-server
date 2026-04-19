@@ -34,6 +34,8 @@ This is the Selection Gap: AI finds your brand but does not consistently choose 
 
 AgentAEO measures this gap. Quantifies it in dollars. Generates the fix.
 
+Also known as: Generative Engine Optimization (GEO), Answer Engine Optimization (AEO), AI SEO — AgentAEO measures the citation layer that determines whether AI recommends you or your competitor.
+
 ## Three workflows to try now
 
 **1. Competitive intelligence**
